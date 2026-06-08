@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #1E3A5F;
+  --primary-light: #2C5282;
+  --primary-dark: #153E75;
+  --accent: #F59E0B;
+  --accent-light: #FCD34D;
+  --bg: #F8FAFC;
+  --card: #FFFFFF;
+  --text: #1A202C;
+  --text-secondary: #718096;
+  --border: #E2E8F0;
+  --success: #48BB78;
+  --warning: #ECC94B;
+  --danger: #F56565;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
