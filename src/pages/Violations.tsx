@@ -453,7 +453,3 @@ function StatCard({ icon: Icon, label, value, color }: any) {
 function InfoItem({ label, value }: any) {
   return <div><div className="text-xs text-[var(--text-secondary)]">{label}</div><div className="text-sm font-medium text-[var(--text)]">{value || '-'}</div></div>;
 }
-
-function Search() {
-  return <div />;
-}
