@@ -109,6 +109,7 @@ export default function Scheduling() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('')
   const [bookingLoading, setBookingLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const fetchSchedules = () => {
     const params = new URLSearchParams({
@@ -122,6 +123,26 @@ export default function Scheduling() {
         setSchedules(res.data || [])
       })
       .catch(() => {})
+  }
+
+  const fetchScheduleDetail = (scheduleId: number) => {
+    setDetailLoading(true)
+    api
+      .get<{ success: boolean; data: Schedule }>(`/schedules/${scheduleId}`)
+      .then((res) => {
+        const detail = res.data
+        if (detail) {
+          setSelectedSchedule(detail)
+          const idx = schedules.findIndex((s) => s.id === scheduleId)
+          if (idx >= 0) {
+            const newSchedules = [...schedules]
+            newSchedules[idx] = detail
+            setSchedules(newSchedules)
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDetailLoading(false))
   }
 
   const fetchCoaches = () => {
@@ -193,6 +214,7 @@ export default function Scheduling() {
     setSelectedSchedule(schedule)
     setSelectedStudentId('')
     setShowDetail(true)
+    fetchScheduleDetail(schedule.id)
   }
 
   const updateForm = (field: keyof ScheduleForm, value: string) => {
@@ -238,25 +260,25 @@ export default function Scheduling() {
     if (!selectedSchedule || !selectedStudentId) return
     setBookingLoading(true)
     api
-      .post<{ success: boolean; data: unknown }>(`/schedules/${selectedSchedule.id}/book`, {
+      .post<{ success: boolean; data: Schedule }>(`/schedules/${selectedSchedule.id}/book`, {
         student_id: Number(selectedStudentId),
       })
-      .then(() => {
+      .then((res) => {
+        const updated = res.data
         setSelectedStudentId('')
-        fetchSchedules()
-        const idx = schedules.findIndex((s) => s.id === selectedSchedule.id)
-        if (idx >= 0) {
-          const updated = {
-            ...schedules[idx],
-            current_students: schedules[idx].current_students + 1,
-          }
-          const newSchedules = [...schedules]
-          newSchedules[idx] = updated
-          setSchedules(newSchedules)
+        if (updated) {
           setSelectedSchedule(updated)
+          const idx = schedules.findIndex((s) => s.id === updated.id)
+          if (idx >= 0) {
+            const newSchedules = [...schedules]
+            newSchedules[idx] = updated
+            setSchedules(newSchedules)
+          }
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        window.alert(err?.response?.data?.error || '预约失败')
+      })
       .finally(() => setBookingLoading(false))
   }
 
@@ -264,22 +286,22 @@ export default function Scheduling() {
     if (!selectedSchedule) return
     if (!window.confirm('确定取消该学员的预约吗？')) return
     api
-      .delete<{ success: boolean; data: null }>(`/schedules/${selectedSchedule.id}/book/${studentId}`)
-      .then(() => {
-        fetchSchedules()
-        const idx = schedules.findIndex((s) => s.id === selectedSchedule.id)
-        if (idx >= 0) {
-          const updated = {
-            ...schedules[idx],
-            current_students: Math.max(0, schedules[idx].current_students - 1),
-          }
-          const newSchedules = [...schedules]
-          newSchedules[idx] = updated
-          setSchedules(newSchedules)
+      .delete<{ success: boolean; data: Schedule }>(`/schedules/${selectedSchedule.id}/book/${studentId}`)
+      .then((res) => {
+        const updated = res.data
+        if (updated) {
           setSelectedSchedule(updated)
+          const idx = schedules.findIndex((s) => s.id === updated.id)
+          if (idx >= 0) {
+            const newSchedules = [...schedules]
+            newSchedules[idx] = updated
+            setSchedules(newSchedules)
+          }
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        window.alert(err?.response?.data?.error || '取消预约失败')
+      })
   }
 
   const presetButtons = [
@@ -497,7 +519,9 @@ export default function Scheduling() {
         title="排班详情"
         width="max-w-xl"
       >
-        {selectedSchedule && (
+        {detailLoading ? (
+          <div className="py-12 text-center text-sm text-[var(--text-secondary)]">加载中...</div>
+        ) : selectedSchedule && (
           <div className="space-y-5">
             <div
               className={`rounded-lg p-4 border ${

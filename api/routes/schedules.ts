@@ -39,6 +39,32 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
   }
 });
 
+router.get('/:id', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const schedule = queryOne(
+      'SELECT s.*, u.name as coach_name FROM schedules s LEFT JOIN users u ON s.coach_id = u.id WHERE s.id = ?',
+      [id]
+    );
+    if (!schedule) {
+      res.status(404).json({ success: false, error: '排班不存在' });
+      return;
+    }
+
+    const bookings = queryAll(
+      `SELECT b.id, b.student_id, s.name as student_name, s.training_type, b.created_at, b.status 
+       FROM bookings b LEFT JOIN students s ON b.student_id = s.id 
+       WHERE b.schedule_id = ? AND b.status = 'booked'
+       ORDER BY b.created_at ASC`,
+      [id]
+    );
+
+    res.json({ success: true, data: { ...schedule, bookings } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: '获取排班详情失败' });
+  }
+});
+
 router.post('/', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const { coach_id, course_type, schedule_date, start_time, end_time, max_students } = req.body;
@@ -172,20 +198,28 @@ router.post('/:id/book', authMiddleware, async (req: Request, res: Response): Pr
       return;
     }
 
-    const db = getDb();
-    db.run('INSERT INTO bookings (schedule_id, student_id) VALUES (?, ?)', [scheduleId, student_id]);
+    run('INSERT INTO bookings (schedule_id, student_id) VALUES (?, ?)', [scheduleId, student_id]);
 
     const newCurrent = schedule.current_students + 1;
     if (newCurrent >= schedule.max_students) {
-      db.run('UPDATE schedules SET current_students = ?, status = ? WHERE id = ?', [newCurrent, 'full', scheduleId]);
+      run('UPDATE schedules SET current_students = ?, status = ? WHERE id = ?', [newCurrent, 'full', scheduleId]);
     } else {
-      db.run('UPDATE schedules SET current_students = ? WHERE id = ?', [newCurrent, scheduleId]);
+      run('UPDATE schedules SET current_students = ? WHERE id = ?', [newCurrent, scheduleId]);
     }
 
-    const id = getLastInsertId();
-    const booking = queryOne('SELECT * FROM bookings WHERE id = ?', [id]);
+    const updatedSchedule = queryOne(
+      'SELECT s.*, u.name as coach_name FROM schedules s LEFT JOIN users u ON s.coach_id = u.id WHERE s.id = ?',
+      [scheduleId]
+    );
+    const bookings = queryAll(
+      `SELECT b.id, b.student_id, s.name as student_name, s.training_type, b.created_at, b.status 
+       FROM bookings b LEFT JOIN students s ON b.student_id = s.id 
+       WHERE b.schedule_id = ? AND b.status = 'booked'
+       ORDER BY b.created_at ASC`,
+      [scheduleId]
+    );
 
-    res.status(201).json({ success: true, data: booking });
+    res.status(201).json({ success: true, data: { ...updatedSchedule, bookings } });
   } catch (error) {
     res.status(500).json({ success: false, error: '预约失败' });
   }
@@ -211,17 +245,28 @@ router.delete('/:id/book/:studentId', authMiddleware, async (req: Request, res: 
       return;
     }
 
-    const db = getDb();
-    db.run("UPDATE bookings SET status = 'cancelled' WHERE id = ?", [booking.id]);
+    run("UPDATE bookings SET status = 'cancelled' WHERE id = ?", [booking.id]);
 
     const newCurrent = Math.max(0, schedule.current_students - 1);
     if (schedule.status === 'full') {
-      db.run('UPDATE schedules SET current_students = ?, status = ? WHERE id = ?', [newCurrent, 'available', scheduleId]);
+      run('UPDATE schedules SET current_students = ?, status = ? WHERE id = ?', [newCurrent, 'available', scheduleId]);
     } else {
-      db.run('UPDATE schedules SET current_students = ? WHERE id = ?', [newCurrent, scheduleId]);
+      run('UPDATE schedules SET current_students = ? WHERE id = ?', [newCurrent, scheduleId]);
     }
 
-    res.json({ success: true, data: null });
+    const updatedSchedule = queryOne(
+      'SELECT s.*, u.name as coach_name FROM schedules s LEFT JOIN users u ON s.coach_id = u.id WHERE s.id = ?',
+      [scheduleId]
+    );
+    const bookings = queryAll(
+      `SELECT b.id, b.student_id, s.name as student_name, s.training_type, b.created_at, b.status 
+       FROM bookings b LEFT JOIN students s ON b.student_id = s.id 
+       WHERE b.schedule_id = ? AND b.status = 'booked'
+       ORDER BY b.created_at ASC`,
+      [scheduleId]
+    );
+
+    res.json({ success: true, data: { ...updatedSchedule, bookings } });
   } catch (error) {
     res.status(500).json({ success: false, error: '取消预约失败' });
   }

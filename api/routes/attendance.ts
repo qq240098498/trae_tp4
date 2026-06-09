@@ -2,6 +2,25 @@ import { Router, type Request, type Response } from 'express';
 import { queryAll, queryOne, run, getLastInsertId, getDb } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 
+function pad(n: number): string {
+  return n.toString().padStart(2, '0');
+}
+
+function formatLocalTime(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function parseLocalTime(s: string): Date {
+  const [datePart, timePart] = s.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second] = timePart.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute, second);
+}
+
+function formatDateOnly(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function checkAndGenerateAlert(studentId: number, courseType: string) {
   const hoursResult = queryOne(
     "SELECT SUM(duration_hours) as total FROM attendance WHERE student_id = ? AND course_type = ? AND status = 'completed'",
@@ -69,7 +88,7 @@ router.post('/check-in', authMiddleware, async (req: Request, res: Response): Pr
       return;
     }
 
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const now = formatLocalTime(new Date());
 
     run(
       'INSERT INTO attendance (student_id, schedule_id, coach_id, course_type, check_in_time) VALUES (?, ?, ?, ?, ?)',
@@ -109,11 +128,11 @@ router.post('/check-out', authMiddleware, async (req: Request, res: Response): P
     }
 
     const now = new Date();
-    const checkInTime = new Date(record.check_in_time);
+    const checkInTime = parseLocalTime(record.check_in_time);
     const durationMs = now.getTime() - checkInTime.getTime();
     const durationHours = Math.round((durationMs / (1000 * 60 * 60)) * 100) / 100;
 
-    const nowStr = now.toISOString().replace('T', ' ').substring(0, 19);
+    const nowStr = formatLocalTime(now);
 
     run(
       "UPDATE attendance SET check_out_time = ?, duration_hours = ?, status = 'completed' WHERE id = ?",
@@ -146,7 +165,7 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
     const params: any[] = [];
 
     if (date) {
-      conditions.push("date(a.check_in_time) = ?");
+      conditions.push("substr(a.check_in_time, 1, 10) = ?");
       params.push(date);
     }
     if (coachId) {
@@ -182,15 +201,15 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
 
 router.get('/today', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
-    const today = new Date().toISOString().substring(0, 10);
+    const today = formatDateOnly(new Date());
 
     const checkedIn = queryAll(
-      `SELECT a.*, s.name as student_name, u.name as coach_name FROM attendance a LEFT JOIN students s ON a.student_id = s.id LEFT JOIN users u ON a.coach_id = u.id WHERE date(a.check_in_time) = ? AND a.status = 'checked_in'`,
+      `SELECT a.*, s.name as student_name, u.name as coach_name FROM attendance a LEFT JOIN students s ON a.student_id = s.id LEFT JOIN users u ON a.coach_id = u.id WHERE substr(a.check_in_time, 1, 10) = ? AND a.status = 'checked_in'`,
       [today]
     );
 
     const completed = queryAll(
-      `SELECT a.*, s.name as student_name, u.name as coach_name FROM attendance a LEFT JOIN students s ON a.student_id = s.id LEFT JOIN users u ON a.coach_id = u.id WHERE date(a.check_in_time) = ? AND a.status = 'completed'`,
+      `SELECT a.*, s.name as student_name, u.name as coach_name FROM attendance a LEFT JOIN students s ON a.student_id = s.id LEFT JOIN users u ON a.coach_id = u.id WHERE substr(a.check_in_time, 1, 10) = ? AND a.status = 'completed'`,
       [today]
     );
 
