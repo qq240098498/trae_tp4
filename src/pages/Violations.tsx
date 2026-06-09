@@ -41,23 +41,30 @@ export default function Violations() {
 
   useEffect(() => { loadOverview(); loadList(); loadMeta(); loadRanking(); }, [page, typeFilter, severityFilter, statusFilter]);
 
-  const loadOverview = async () => { const res: any = await api.get('/violations/summary/overview'); if (res.success) setOverview(res.data); };
+  const loadOverview = async () => { try { const res: any = await api.get('/violations/summary/overview'); if (res.success) setOverview(res.data); } catch (e) { /* ignore */ } };
   const loadList = async () => {
-    const params = new URLSearchParams({ page: String(page), limit: 15 });
-    if (typeFilter) params.append('violation_type', typeFilter);
-    if (severityFilter) params.append('severity', severityFilter);
-    if (statusFilter) params.append('status', statusFilter);
-    const res: any = await api.get(`/violations?${params.toString()}`);
-    if (res.success) { setViolations(res.data.list.filter((v: any) => !search || v.violator_name?.includes(search) || v.title?.includes(search))); setTotal(res.data.total); }
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: 15 });
+      if (typeFilter) params.append('violation_type', typeFilter);
+      if (severityFilter) params.append('severity', severityFilter);
+      if (statusFilter) params.append('status', statusFilter);
+      const res: any = await api.get(`/violations?${params.toString()}`);
+      if (res.success) { setViolations(res.data.list.filter((v: any) => !search || v.violator_name?.includes(search) || v.title?.includes(search))); setTotal(res.data.total); }
+    } catch (e) { /* ignore */ }
   };
   const loadMeta = async () => {
-    const [c, s, t] = await Promise.all([api.get<any>('/coaches'), api.get<any>('/students?limit=200'), api.get<any>('/violations/violation-types')]);
-    if (c.success) setCoaches(c.data);
-    if (s.success) setStudents(s.data.list || []);
-    if (t.success) setTypes(t.data);
+    try {
+      const results = await Promise.allSettled([api.get<any>('/coaches'), api.get<any>('/students?limit=200'), api.get<any>('/violations/violation-types')]);
+      const c = results[0].status === 'fulfilled' ? results[0].value : null;
+      const s = results[1].status === 'fulfilled' ? results[1].value : null;
+      const t = results[2].status === 'fulfilled' ? results[2].value : null;
+      if (c?.success) setCoaches(c.data);
+      if (s?.success) setStudents(s.data.list || []);
+      if (t?.success) setTypes(t.data);
+    } catch (e) { /* ignore */ }
   };
-  const loadRanking = async () => { const res: any = await api.get('/violations/ranking/coaches'); if (res.success) setRanking(res.data); };
-  const loadDetail = async (id: number) => { const res: any = await api.get(`/violations/${id}`); if (res.success) setShowDetail(res.data); };
+  const loadRanking = async () => { try { const res: any = await api.get('/violations/ranking/coaches'); if (res.success) setRanking(res.data); } catch (e) { /* ignore */ } };
+  const loadDetail = async (id: number) => { try { const res: any = await api.get(`/violations/${id}`); if (res.success) setShowDetail(res.data); } catch (e) { /* ignore */ } };
 
   const handleCreate = async () => {
     if (!form.violation_type || !form.violator_id || !form.title || !form.description) { alert('请填写必填项'); return; }
@@ -247,8 +254,7 @@ export default function Violations() {
         </div>
       </div>
 
-      {showCreate && (
-        <Modal title="登记违规记录" onClose={() => setShowCreate(false)} width="max-w-2xl">
+      <Modal isOpen={showCreate} title="登记违规记录" onClose={() => setShowCreate(false)} width="max-w-2xl">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">违规对象类型</label>
@@ -314,11 +320,11 @@ export default function Violations() {
             <button onClick={handleCreate} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">提交登记</button>
           </div>
         </Modal>
-      )}
 
-      {showDetail && (
-        <Modal title="违规详情" onClose={() => setShowDetail(null)} width="max-w-2xl">
+      <Modal isOpen={!!showDetail} title="违规详情" onClose={() => setShowDetail(null)} width="max-w-2xl">
           <div className="space-y-4">
+            {showDetail && (
+              <>
             <div className={`p-4 rounded-xl ${SEVERITY_MAP[showDetail.severity]?.bg} border`}>
               <div className="flex items-start justify-between mb-2">
                 <div>
@@ -374,21 +380,23 @@ export default function Violations() {
               </div>
             )}
             <div className="flex justify-end gap-3 pt-2 border-t border-[var(--border)]">
-              {showDetail.status === 'confirmed' && (
+              {showDetail?.status === 'confirmed' && (
                 <button onClick={() => setShowAppeal({ id: showDetail.id, appeal_reason: '' })} className="px-4 py-2 text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50">申诉</button>
               )}
-              {['pending', 'investigating', 'appealed'].includes(showDetail.status) && (
+              {['pending', 'investigating', 'appealed'].includes(showDetail?.status || '') && (
                 <button onClick={() => { setShowHandle({ id: showDetail.id, status: 'resolved', penalty_type: showDetail.penalty_type || '', penalty_detail: showDetail.penalty_detail || '', penalty_amount: showDetail.penalty_amount || 0, resolution_note: '' }); setShowDetail(null); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">处理</button>
               )}
               <button onClick={() => setShowDetail(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">关闭</button>
             </div>
+            </>
+            )}
           </div>
         </Modal>
-      )}
 
-      {showHandle && (
-        <Modal title="处理违规" onClose={() => setShowHandle(null)} width="max-w-md">
+      <Modal isOpen={!!showHandle} title="处理违规" onClose={() => setShowHandle(null)} width="max-w-md">
           <div className="space-y-4">
+            {showHandle && (
+              <>
             <div><label className="block text-sm font-medium mb-1.5">处理状态</label>
               <select value={showHandle.status} onChange={(e) => setShowHandle({ ...showHandle, status: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                 <option value="investigating">调查中</option>
@@ -416,13 +424,15 @@ export default function Violations() {
               <button onClick={() => setShowHandle(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">取消</button>
               <button onClick={handleResolve} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">确认处理</button>
             </div>
+            </>
+            )}
           </div>
         </Modal>
-      )}
 
-      {showAppeal && (
-        <Modal title="提交申诉" onClose={() => setShowAppeal(null)} width="max-w-md">
+      <Modal isOpen={!!showAppeal} title="提交申诉" onClose={() => setShowAppeal(null)} width="max-w-md">
           <div className="space-y-4">
+            {showAppeal && (
+              <>
             <div><label className="block text-sm font-medium mb-1.5">申诉理由 <span className="text-red-500">*</span></label>
               <textarea rows={5} value={showAppeal.appeal_reason} onChange={(e) => setShowAppeal({ ...showAppeal, appeal_reason: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="请详细说明申诉理由..." />
             </div>
@@ -430,9 +440,10 @@ export default function Violations() {
               <button onClick={() => setShowAppeal(null)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">取消</button>
               <button onClick={handleAppealSubmit} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">提交申诉</button>
             </div>
+            </>
+            )}
           </div>
         </Modal>
-      )}
     </div>
   );
 }

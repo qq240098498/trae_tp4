@@ -38,23 +38,23 @@ export default function CoachPerformance() {
   }, [page, periodType]);
 
   const loadData = async () => {
-    setLoading(true);
-    const res: any = await api.get(`/coach-performance?page=${page}&limit=15${periodType ? `&period_type=${periodType}` : ''}`);
-    if (res.success) {
-      setPerformances(res.data.list.filter((p: any) => !search || p.coach_name?.includes(search)));
-      setTotal(res.data.total);
-    }
+    try {
+      setLoading(true);
+      const res: any = await api.get(`/coach-performance?page=${page}&limit=15${periodType ? `&period_type=${periodType}` : ''}`);
+      if (res.success) {
+        setPerformances(res.data.list.filter((p: any) => !search || p.coach_name?.includes(search)));
+        setTotal(res.data.total);
+      }
+    } catch (e) { /* ignore */ }
     setLoading(false);
   };
 
   const loadCoaches = async () => {
-    const res: any = await api.get('/coaches');
-    if (res.success) setCoaches(res.data);
+    try { const res: any = await api.get('/coaches'); if (res.success) setCoaches(res.data); } catch (e) { /* ignore */ }
   };
 
   const loadRules = async () => {
-    const res: any = await api.get('/coach-performance/rules');
-    if (res.success) setRules(res.data);
+    try { const res: any = await api.get('/coach-performance/rules'); if (res.success) setRules(res.data); } catch (e) { /* ignore */ }
   };
 
   const handlePreview = async () => {
@@ -203,8 +203,7 @@ export default function CoachPerformance() {
         )}
       </div>
 
-      {showCreate && (
-        <Modal title="创建教练考核" onClose={() => { setShowCreate(false); setPreview(null); }} width="max-w-3xl">
+      <Modal isOpen={showCreate} title="创建教练考核" onClose={() => { setShowCreate(false); setPreview(null); }} width="max-w-3xl">
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-[var(--text)] mb-1.5">教练 <span className="text-red-500">*</span></label>
@@ -287,11 +286,11 @@ export default function CoachPerformance() {
             <button onClick={handleCreate} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90">确认创建</button>
           </div>
         </Modal>
-      )}
 
-      {showDetail && (
-        <Modal title={`考核详情 - ${showDetail.coach_name}`} onClose={() => setShowDetail(null)} width="max-w-4xl">
+      <Modal isOpen={!!showDetail} title={`考核详情 - ${showDetail?.coach_name || ''}`} onClose={() => setShowDetail(null)} width="max-w-4xl">
           <div className="space-y-4">
+            {showDetail && (
+              <>
             <div className="grid grid-cols-4 gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl">
               <InfoBlock label="考核周期" value={{ monthly: '月度', quarterly: '季度', yearly: '年度' }[showDetail.period_type] || showDetail.period_type} />
               <InfoBlock label="考核期间" value={`${showDetail.period_start} ~ ${showDetail.period_end}`} />
@@ -343,14 +342,15 @@ export default function CoachPerformance() {
               </div>
             )}
             <div className="flex justify-end gap-3 pt-2 border-t border-[var(--border)]">
-              {showDetail.status === 'draft' && (
+              {showDetail?.status === 'draft' && (
                 <button onClick={() => handleUpdateStatus(showDetail.id, 'published')} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">发布考核</button>
               )}
               <button onClick={() => setShowDetail(null)} className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-gray-50">关闭</button>
             </div>
+            </>
+            )}
           </div>
         </Modal>
-      )}
     </div>
   );
 }

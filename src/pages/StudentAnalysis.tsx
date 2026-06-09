@@ -31,44 +31,45 @@ export default function StudentAnalysis() {
   }, [page, riskFilter]);
 
   const loadOverview = async () => {
-    const res: any = await api.get('/student-analysis/overview');
-    if (res.success) setOverview(res.data);
+    try { const res: any = await api.get('/student-analysis/overview'); if (res.success) setOverview(res.data); } catch (e) { /* ignore */ }
   };
 
   const loadRiskList = async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: 15 });
-    if (riskFilter) params.append('risk_level', riskFilter);
-    const res: any = await api.get(`/student-analysis/risk/list?${params.toString()}`);
-    if (res.success) {
-      setRiskList(res.data.list.filter((r: any) => !search || r.student_name?.includes(search)));
-      setTotalRisk(res.data.total);
-    }
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(page), limit: 15 });
+      if (riskFilter) params.append('risk_level', riskFilter);
+      const res: any = await api.get(`/student-analysis/risk/list?${params.toString()}`);
+      if (res.success) {
+        setRiskList(res.data.list.filter((r: any) => !search || r.student_name?.includes(search)));
+        setTotalRisk(res.data.total);
+      }
+    } catch (e) { /* ignore */ }
     setLoading(false);
   };
 
   const loadStudents = async () => {
-    const res: any = await api.get('/students?limit=100');
-    if (res.success) setStudents(res.data.list || []);
+    try { const res: any = await api.get('/students?limit=100'); if (res.success) setStudents(res.data.list || []); } catch (e) { /* ignore */ }
   };
 
   const runAnalysis = async (studentId?: number) => {
     if (!confirm(studentId ? '确定重新分析该学员吗？' : '确定对所有学员进行学情分析吗？')) return;
-    if (studentId) {
-      await api.post(`/student-analysis/analyze/${studentId}`);
-    } else {
-      for (const s of students.slice(0, 20)) {
-        await api.post(`/student-analysis/analyze/${s.id}`);
+    try {
+      if (studentId) {
+        await api.post(`/student-analysis/analyze/${studentId}`);
+      } else {
+        for (const s of students.slice(0, 20)) {
+          try { await api.post(`/student-analysis/analyze/${s.id}`); } catch (e) { /* ignore */ }
+        }
       }
-    }
-    alert('分析完成');
-    loadOverview();
-    loadRiskList();
+      alert('分析完成');
+      loadOverview();
+      loadRiskList();
+    } catch (e) { alert('分析失败'); }
   };
 
   const loadStudentDetail = async (studentId: number) => {
-    const res: any = await api.get(`/student-analysis/student/${studentId}`);
-    if (res.success) setShowDetail(res.data);
+    try { const res: any = await api.get(`/student-analysis/student/${studentId}`); if (res.success) setShowDetail(res.data); } catch (e) { /* ignore */ }
   };
 
   const getCourseName = (c: string) => ({ subject1: '科目一', subject2: '科目二', subject3: '科目三', subject4: '科目四' }[c] || c);

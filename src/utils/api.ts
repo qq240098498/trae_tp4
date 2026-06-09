@@ -20,11 +20,18 @@ async function handleResponse<T>(res: Response): Promise<T> {
     window.location.href = '/login'
     throw new Error('未授权，请重新登录')
   }
-  const json = await res.json()
-  if (!res.ok) {
-    throw new Error(json.message || '请求失败')
+  try {
+    const json = await res.json()
+    if (!res.ok) {
+      return { success: false, error: json?.message || json?.error || `请求失败 (${res.status})` } as any
+    }
+    return json
+  } catch (e) {
+    if (!res.ok) {
+      return { success: false, error: `请求失败 (${res.status})` } as any
+    }
+    throw e
   }
-  return json
 }
 
 export const api = {

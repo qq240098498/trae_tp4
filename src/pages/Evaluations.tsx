@@ -20,43 +20,47 @@ export default function Evaluations() {
   }, [page, coachFilter, courseFilter]);
 
   const loadData = async () => {
-    const params = new URLSearchParams({ page: String(page), limit: 20 });
-    if (coachFilter) params.append('coach_id', coachFilter);
-    if (courseFilter) params.append('course_type', courseFilter);
-    const res: any = await api.get(`/evaluations?${params.toString()}`);
-    if (res.success) {
-      setEvaluations(res.data.list.filter((e: any) =>
-        !search || e.coach_name?.includes(search) || e.student_name?.includes(search)
-      ));
-      setTotal(res.data.total);
-    }
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: 20 });
+      if (coachFilter) params.append('coach_id', coachFilter);
+      if (courseFilter) params.append('course_type', courseFilter);
+      const res: any = await api.get(`/evaluations?${params.toString()}`);
+      if (res.success) {
+        setEvaluations(res.data.list.filter((e: any) =>
+          !search || e.coach_name?.includes(search) || e.student_name?.includes(search)
+        ));
+        setTotal(res.data.total);
+      }
+    } catch (e) { /* ignore */ }
   };
 
   const loadCoaches = async () => {
-    const res: any = await api.get('/coaches');
-    if (res.success) setCoaches(res.data);
+    try { const res: any = await api.get('/coaches'); if (res.success) setCoaches(res.data); } catch (e) { /* ignore */ }
   };
 
   const loadDetail = async (id: number) => {
-    const res: any = await api.get(`/evaluations/${id}`);
-    if (res.success) setShowDetail(res.data);
+    try { const res: any = await api.get(`/evaluations/${id}`); if (res.success) setShowDetail(res.data); } catch (e) { /* ignore */ }
   };
 
   const loadCoachSummary = async (coachId: number) => {
-    const res: any = await api.get(`/evaluations/coach/${coachId}/summary`);
-    if (res.success) {
-      const coach = coaches.find((c) => c.id === coachId);
-      setShowCoachSummary({ ...res.data, coach_name: coach?.name });
-    }
+    try {
+      const res: any = await api.get(`/evaluations/coach/${coachId}/summary`);
+      if (res.success) {
+        const coach = coaches.find((c) => c.id === coachId);
+        setShowCoachSummary({ ...res.data, coach_name: coach?.name });
+      }
+    } catch (e) { /* ignore */ }
   };
 
   const handleStatusChange = async (id: number, status: string) => {
-    const res: any = await api.put(`/evaluations/${id}/status`, { status });
-    if (res.success) {
-      alert('状态更新成功');
-      loadData();
-      if (showDetail?.id === id) setShowDetail(res.data);
-    }
+    try {
+      const res: any = await api.put(`/evaluations/${id}/status`, { status });
+      if (res.success) {
+        alert('状态更新成功');
+        loadData();
+        if (showDetail?.id === id) setShowDetail(res.data);
+      }
+    } catch (e) { alert('操作失败'); }
   };
 
   const getCourseName = (c: string) => ({ subject1: '科目一', subject2: '科目二', subject3: '科目三', subject4: '科目四' }[c] || c);
@@ -170,9 +174,10 @@ export default function Evaluations() {
         )}
       </div>
 
-      {showDetail && (
-        <Modal title="评价详情" onClose={() => setShowDetail(null)} width="max-w-xl">
+      <Modal isOpen={!!showDetail} title="评价详情" onClose={() => setShowDetail(null)} width="max-w-xl">
           <div className="space-y-4">
+            {showDetail && (
+              <>
             <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl">
               <div><div className="text-xs text-[var(--text-secondary)]">教练</div><div className="font-medium text-[var(--text)]">{showDetail.coach_name}</div></div>
               <div><div className="text-xs text-[var(--text-secondary)]">学员</div><div className="font-medium text-[var(--text)]">{showDetail.is_anonymous ? '匿名' : showDetail.student_name}</div></div>
@@ -215,13 +220,15 @@ export default function Evaluations() {
               ) : null}
               <button onClick={() => setShowDetail(null)} className="px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-gray-50">关闭</button>
             </div>
+            </>
+            )}
           </div>
         </Modal>
-      )}
 
-      {showCoachSummary && (
-        <Modal title={`${showCoachSummary.coach_name} - 评价汇总`} onClose={() => setShowCoachSummary(null)} width="max-w-3xl">
+      <Modal isOpen={!!showCoachSummary} title={`${showCoachSummary?.coach_name || ''} - 评价汇总`} onClose={() => setShowCoachSummary(null)} width="max-w-3xl">
           <div className="space-y-5">
+            {showCoachSummary && (
+              <>
             <div className="flex items-center gap-6 p-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
                 {showCoachSummary.coach_name?.charAt(0)}
@@ -301,9 +308,10 @@ export default function Evaluations() {
                 </div>
               </div>
             )}
+            </>
+            )}
           </div>
         </Modal>
-      )}
     </div>
   );
 }
