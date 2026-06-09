@@ -18,10 +18,14 @@ import {
   ArrowLeft,
   X,
   Save,
+  Award,
+  AlertTriangle,
+  TrendingDown,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 
 type TabType = 'overview' | 'daily' | 'weekly' | 'salary' | 'rates';
+type SalaryPeriodType = 'week' | 'month' | 'year' | 'custom';
 
 const getCourseName = (c: string) =>
   ({ subject1: '科目一', subject2: '科目二', subject3: '科目三', subject4: '科目四' }[c] || c);
@@ -34,6 +38,19 @@ const getCourseColor = (c: string) =>
     subject4: 'bg-orange-100 text-orange-700',
   }[c] || 'bg-gray-100 text-gray-700');
 
+const getABCGradeStyle = (grade: string) => {
+  switch (grade) {
+    case 'A':
+      return { label: 'A级', color: 'text-green-700', bg: 'bg-green-100', border: 'border-green-200', desc: '80-100分 · 不扣绩效' };
+    case 'B':
+      return { label: 'B级', color: 'text-blue-700', bg: 'bg-blue-100', border: 'border-blue-200', desc: '60-79分 · 不扣绩效' };
+    case 'C':
+      return { label: 'C级', color: 'text-red-700', bg: 'bg-red-100', border: 'border-red-200', desc: '60分以下 · 扣除比例绩效' };
+    default:
+      return { label: '未评定', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200', desc: '暂无绩效数据' };
+  }
+};
+
 function formatToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -42,6 +59,40 @@ function formatToday(): string {
 function getMonthStart(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function getWeekRange(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const weekStart = new Date(date.setDate(diff));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return {
+    start: `${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}`,
+    end: `${weekEnd.getFullYear()}-${pad(weekEnd.getMonth() + 1)}-${pad(weekEnd.getDate())}`,
+  };
+}
+
+function getMonthRange(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr);
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return {
+    start: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+    end: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
+  };
+}
+
+function getYearRange(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return {
+    start: `${date.getFullYear()}-01-01`,
+    end: `${date.getFullYear()}-12-31`,
+  };
 }
 
 export default function CoachLedger() {
@@ -58,6 +109,7 @@ export default function CoachLedger() {
   const [salaryData, setSalaryData] = useState<any>(null);
   const [salaryStart, setSalaryStart] = useState(getMonthStart());
   const [salaryEnd, setSalaryEnd] = useState(formatToday());
+  const [salaryPeriodType, setSalaryPeriodType] = useState<SalaryPeriodType>('month');
   const [ratesData, setRatesData] = useState<any[]>([]);
   const [editRates, setEditRates] = useState<any[]>([]);
   const [showRatesModal, setShowRatesModal] = useState(false);
@@ -146,6 +198,40 @@ export default function CoachLedger() {
     loadRates(coach.id);
   };
 
+  const handleSalaryPeriodChange = (type: SalaryPeriodType) => {
+    setSalaryPeriodType(type);
+    const today = formatToday();
+    let start = salaryStart;
+    let end = salaryEnd;
+    if (type === 'week') {
+      const r = getWeekRange(today);
+      start = r.start;
+      end = r.end;
+    } else if (type === 'month') {
+      const r = getMonthRange(today);
+      start = r.start;
+      end = r.end;
+    } else if (type === 'year') {
+      const r = getYearRange(today);
+      start = r.start;
+      end = r.end;
+    }
+    setSalaryStart(start);
+    setSalaryEnd(end);
+    if (selectedCoach) loadSalary(selectedCoach, start, end);
+  };
+
+  const handleSalaryCustomChange = (which: 'start' | 'end', value: string) => {
+    setSalaryPeriodType('custom');
+    if (which === 'start') {
+      setSalaryStart(value);
+      if (selectedCoach) loadSalary(selectedCoach, value, salaryEnd);
+    } else {
+      setSalaryEnd(value);
+      if (selectedCoach) loadSalary(selectedCoach, salaryStart, value);
+    }
+  };
+
   const handleBackToOverview = () => {
     setSelectedCoach(null);
     setSelectedCoachName('');
@@ -180,7 +266,13 @@ export default function CoachLedger() {
 
   const exportSalaryCSV = () => {
     if (!salaryData) return;
+    const s = salaryData.summary;
+    const grade = salaryData.abc_grade || '-';
     const rows = [
+      ['薪资报表 - ' + selectedCoachName],
+      ['统计周期', `${salaryData.start_date} 至 ${salaryData.end_date}`],
+      ['绩效等级', grade, getABCGradeStyle(grade).desc],
+      [],
       ['日期', '带班班次', '授课人次', '授课次数', '累计学时(小时)', '当日薪资(元)'],
       ...salaryData.daily_list.map((d: any) => [
         d.work_date,
@@ -190,16 +282,20 @@ export default function CoachLedger() {
         d.total_hours,
         d.total_salary,
       ]),
-      [
-        '合计',
-        salaryData.summary.class_count,
-        salaryData.summary.student_count,
-        salaryData.summary.session_count,
-        salaryData.summary.total_hours,
-        salaryData.summary.total_salary,
-      ],
+      [],
+      ['汇总明细'],
+      ['出勤天数', s.work_days + '天'],
+      ['授课人次', s.student_count],
+      ['授课次数', s.session_count],
+      ['带班班次', s.class_count],
+      ['累计学时(小时)', s.total_hours],
+      ['基础薪资(元)', s.base_salary ?? s.total_salary],
+      ['绩效等级', grade],
+      ['绩效扣除比例(%)', ((salaryData.salary_deduction_rate ?? 0) * 100).toFixed(0) + '%'],
+      ['绩效扣除金额(元)', s.performance_deduction ?? 0],
+      ['实发薪资(元)', s.final_salary ?? s.total_salary],
     ];
-    const csv = rows.map((r) => r.join(',')).join('\n');
+    const csv = rows.map((r) => r.map((cell) => `"${cell ?? ''}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -331,19 +427,14 @@ export default function CoachLedger() {
           selectedCoach={selectedCoach}
           startDate={salaryStart}
           endDate={salaryEnd}
+          periodType={salaryPeriodType}
           onCoachChange={(id) => {
             const coach = coaches.find((c) => c.id === id);
             if (coach) handleSelectCoach(coach);
             loadSalary(id, salaryStart, salaryEnd);
           }}
-          onStartChange={(d) => {
-            setSalaryStart(d);
-            loadSalary(selectedCoach, d, salaryEnd);
-          }}
-          onEndChange={(d) => {
-            setSalaryEnd(d);
-            loadSalary(selectedCoach, salaryStart, d);
-          }}
+          onPeriodChange={handleSalaryPeriodChange}
+          onCustomDateChange={handleSalaryCustomChange}
           onExport={exportSalaryCSV}
         />
       )}
@@ -856,9 +947,10 @@ function SalarySection({
   selectedCoach,
   startDate,
   endDate,
+  periodType,
   onCoachChange,
-  onStartChange,
-  onEndChange,
+  onPeriodChange,
+  onCustomDateChange,
   onExport,
 }: {
   data: any;
@@ -866,9 +958,10 @@ function SalarySection({
   selectedCoach: number;
   startDate: string;
   endDate: string;
+  periodType: SalaryPeriodType;
   onCoachChange: (id: number) => void;
-  onStartChange: (d: string) => void;
-  onEndChange: (d: string) => void;
+  onPeriodChange: (t: SalaryPeriodType) => void;
+  onCustomDateChange: (which: 'start' | 'end', value: string) => void;
   onExport: () => void;
 }) {
   if (!data)
@@ -880,8 +973,9 @@ function SalarySection({
           onCoachChange={onCoachChange}
           startDate={startDate}
           endDate={endDate}
-          onStartChange={onStartChange}
-          onEndChange={onEndChange}
+          periodType={periodType}
+          onPeriodChange={onPeriodChange}
+          onCustomDateChange={onCustomDateChange}
           onExport={onExport}
         />
         <div className="text-center py-12 text-[var(--text-secondary)]">暂无数据</div>
@@ -889,6 +983,15 @@ function SalarySection({
     );
 
   const s = data.summary;
+  const abcGrade = data.abc_grade || '-';
+  const gradeStyle = getABCGradeStyle(abcGrade);
+  const deductionRate = data.salary_deduction_rate ?? 0;
+  const baseSalary = s.base_salary ?? s.total_salary;
+  const perfDeduction = s.performance_deduction ?? 0;
+  const finalSalary = s.final_salary ?? s.total_salary;
+  const performance = data.performance;
+  const displayTotalSalary = baseSalary;
+
   return (
     <div className="space-y-6">
       <SalaryFiltersBar
@@ -897,19 +1000,41 @@ function SalarySection({
         onCoachChange={onCoachChange}
         startDate={startDate}
         endDate={endDate}
-        onStartChange={onStartChange}
-        onEndChange={onEndChange}
+        periodType={periodType}
+        onPeriodChange={onPeriodChange}
+        onCustomDateChange={onCustomDateChange}
         onExport={onExport}
       />
 
-      <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-        <div className="text-sm text-[var(--text-secondary)] mb-1">薪资统计周期</div>
-        <div className="text-lg font-bold text-[var(--text)]">
-          {data.start_date} 至 {data.end_date}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+          <div className="text-sm text-[var(--text-secondary)] mb-1">薪资统计周期</div>
+          <div className="text-lg font-bold text-[var(--text)]">
+            {data.start_date} 至 {data.end_date}
+          </div>
+        </div>
+        <div className={`p-4 rounded-xl border ${gradeStyle.border} ${gradeStyle.bg}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-[var(--text-secondary)] mb-1">绩效等级</div>
+              <div className={`text-2xl font-bold ${gradeStyle.color}`}>
+                <Award className="inline mr-1" size={20} /> {gradeStyle.label}
+              </div>
+              <div className="text-xs text-[var(--text-secondary)] mt-1">{gradeStyle.desc}</div>
+            </div>
+            {performance && (
+              <div className="text-right">
+                <div className="text-3xl font-bold text-[var(--text)]">
+                  {performance.composite_score?.toFixed(1)}
+                </div>
+                <div className="text-xs text-[var(--text-secondary)]">综合得分</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-7 gap-4">
         <StatCard icon={CalendarDays} label="实际出勤" value={`${s.work_days}天`} color="teal" />
         <StatCard icon={Users} label="授课人次" value={s.student_count} color="blue" />
         <StatCard icon={BarChart3} label="授课次数" value={s.session_count} color="purple" />
@@ -917,11 +1042,64 @@ function SalarySection({
         <StatCard icon={Clock} label="累计学时" value={s.total_hours.toFixed(2)} subValue="小时" color="orange" />
         <StatCard
           icon={Wallet}
-          label="累计薪资"
-          value={`¥${s.total_salary.toFixed(2)}`}
+          label="基础薪资"
+          value={`¥${baseSalary.toFixed(2)}`}
           color="green"
         />
+        <StatCard
+          icon={TrendingDown}
+          label="实发薪资"
+          value={`¥${finalSalary.toFixed(2)}`}
+          color={deductionRate > 0 ? 'orange' : 'green'}
+        />
       </div>
+
+      {deductionRate > 0 && (
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border border-red-100 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center text-red-600">
+            <AlertTriangle size={24} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-medium text-[var(--text)]">绩效扣除明细:</span>
+              <span className="text-sm">基础薪资 ¥{baseSalary.toFixed(2)}</span>
+              <span className="text-red-600 text-sm font-medium">
+                × C级扣除 {(deductionRate * 100).toFixed(0)}%
+              </span>
+              <span className="text-sm">=</span>
+              <span className="text-red-700 font-bold">
+                扣除 ¥{perfDeduction.toFixed(2)}
+              </span>
+              <span className="text-sm ml-2">实发:</span>
+              <span className="text-emerald-700 font-bold">
+                ¥{finalSalary.toFixed(2)}
+              </span>
+            </div>
+            {performance && (
+              <div className="text-xs text-[var(--text-secondary)] mt-1">
+                关联考核周期: {performance.period_start} ~ {performance.period_end}
+                {performance.ranking ? ` · 排名 #${performance.ranking}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {deductionRate === 0 && abcGrade !== '-' && (
+        <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-4 border border-green-100 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
+            <Award size={24} />
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-green-700">
+              绩效等级 {gradeStyle.label}，无需扣除绩效薪资
+            </div>
+            <div className="text-xs text-[var(--text-secondary)] mt-1">
+              {gradeStyle.desc} · 本周期应发薪资全额 ¥{finalSalary.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {data.course_summary?.length > 0 && (
         <div className="bg-white rounded-xl p-4 shadow-sm border border-[var(--border)]">
@@ -955,7 +1133,7 @@ function SalarySection({
                       <span className="font-bold text-green-600">¥{c.salary.toFixed(2)}</span>
                     </td>
                     <td className="py-3 px-4 text-center text-[var(--text-secondary)]">
-                      {s.total_salary > 0 ? ((c.salary / s.total_salary) * 100).toFixed(1) : 0}%
+                      {displayTotalSalary > 0 ? ((c.salary / displayTotalSalary) * 100).toFixed(1) : 0}%
                     </td>
                   </tr>
                 ))}
@@ -1027,7 +1205,7 @@ function SalarySection({
                   <td className="py-3 px-4 text-center text-blue-600">{s.student_count}</td>
                   <td className="py-3 px-4 text-center text-[var(--text-secondary)]">{s.session_count}</td>
                   <td className="py-3 px-4 text-center text-orange-600">{s.total_hours.toFixed(2)}h</td>
-                  <td className="py-3 px-4 text-center text-green-600">¥{s.total_salary.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-center text-green-600">¥{displayTotalSalary.toFixed(2)}</td>
                   <td className="py-3 px-4"></td>
                 </tr>
               </tfoot>
@@ -1163,8 +1341,9 @@ function SalaryFiltersBar({
   onCoachChange,
   startDate,
   endDate,
-  onStartChange,
-  onEndChange,
+  periodType,
+  onPeriodChange,
+  onCustomDateChange,
   onExport,
 }: {
   coaches: any[];
@@ -1172,50 +1351,76 @@ function SalaryFiltersBar({
   onCoachChange: (id: number) => void;
   startDate: string;
   endDate: string;
-  onStartChange: (d: string) => void;
-  onEndChange: (d: string) => void;
+  periodType: SalaryPeriodType;
+  onPeriodChange: (t: SalaryPeriodType) => void;
+  onCustomDateChange: (which: 'start' | 'end', value: string) => void;
   onExport: () => void;
 }) {
+  const periodButtons: { key: SalaryPeriodType; label: string }[] = [
+    { key: 'week', label: '本周' },
+    { key: 'month', label: '本月' },
+    { key: 'year', label: '本年' },
+    { key: 'custom', label: '自定义' },
+  ];
   return (
-    <div className="flex gap-3 flex-wrap items-center justify-between">
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="flex items-center gap-2">
-          <User size={16} className="text-[var(--text-secondary)]" />
-          <select
-            value={selectedCoach}
-            onChange={(e) => onCoachChange(Number(e.target.value))}
-            className="px-4 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          >
-            {coaches.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+    <div className="space-y-3">
+      <div className="flex gap-3 flex-wrap items-center justify-between">
+        <div className="flex gap-3 flex-wrap items-center">
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-[var(--text-secondary)]" />
+            <select
+              value={selectedCoach}
+              onChange={(e) => onCoachChange(Number(e.target.value))}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            >
+              {coaches.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            {periodButtons.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => onPeriodChange(p.key)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-all font-medium ${
+                  periodType === p.key
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
+                }`}
+              >
+                {p.label}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
+        <button
+          onClick={onExport}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-1"
+        >
+          <Download size={14} /> 导出CSV
+        </button>
+      </div>
+      <div className="flex gap-3 flex-wrap items-center">
         <div className="flex items-center gap-2">
           <Calendar size={16} className="text-[var(--text-secondary)]" />
           <input
             type="date"
             value={startDate}
-            onChange={(e) => onStartChange(e.target.value)}
+            onChange={(e) => onCustomDateChange('start', e.target.value)}
             className="px-4 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
           <span className="text-[var(--text-secondary)]">至</span>
           <input
             type="date"
             value={endDate}
-            onChange={(e) => onEndChange(e.target.value)}
+            onChange={(e) => onCustomDateChange('end', e.target.value)}
             className="px-4 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
       </div>
-      <button
-        onClick={onExport}
-        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-1"
-      >
-        <Download size={14} /> 导出CSV
-      </button>
     </div>
   );
 }

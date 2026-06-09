@@ -168,6 +168,9 @@ CREATE TABLE IF NOT EXISTS performance_rules (
   excellent_score REAL NOT NULL DEFAULT 90,
   good_score REAL NOT NULL DEFAULT 75,
   pass_score REAL NOT NULL DEFAULT 60,
+  grade_a_score REAL NOT NULL DEFAULT 80,
+  grade_b_score REAL NOT NULL DEFAULT 60,
+  grade_c_deduction_rate REAL NOT NULL DEFAULT 0.2,
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -288,9 +291,9 @@ INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshol
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject2', 16, 0.8);
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject3', 24, 0.8);
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject4', 10, 0.8);
-INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('monthly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
-INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('quarterly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
-INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('yearly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, grade_a_score, grade_b_score, grade_c_deduction_rate) VALUES ('monthly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60, 80, 60, 0.2);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, grade_a_score, grade_b_score, grade_c_deduction_rate) VALUES ('quarterly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60, 80, 60, 0.2);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, grade_a_score, grade_b_score, grade_c_deduction_rate) VALUES ('yearly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60, 80, 60, 0.2);
 INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject1', 50.0, '2024-01-01');
 INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject2', 80.0, '2024-01-01');
 INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject3', 100.0, '2024-01-01');
@@ -317,6 +320,26 @@ export async function initDb(): Promise<Database> {
 
   db.exec(CREATE_TABLES);
   db.exec(INSERT_SEED_DATA);
+
+  // 迁移：为 performance_rules 表添加新字段（grade_a_score, grade_b_score, grade_c_deduction_rate）
+  try {
+    const columns = db.exec("PRAGMA table_info(performance_rules)");
+    const colNames: string[] = [];
+    if (columns.length > 0 && columns[0].values) {
+      columns[0].values.forEach((row: any) => colNames.push(row[1] as string));
+    }
+    if (!colNames.includes('grade_a_score')) {
+      run(`ALTER TABLE performance_rules ADD COLUMN grade_a_score REAL NOT NULL DEFAULT 80`);
+    }
+    if (!colNames.includes('grade_b_score')) {
+      run(`ALTER TABLE performance_rules ADD COLUMN grade_b_score REAL NOT NULL DEFAULT 60`);
+    }
+    if (!colNames.includes('grade_c_deduction_rate')) {
+      run(`ALTER TABLE performance_rules ADD COLUMN grade_c_deduction_rate REAL NOT NULL DEFAULT 0.2`);
+    }
+  } catch (e) {
+    console.warn('Migration skipped for performance_rules:', (e as Error).message);
+  }
 
   saveDb();
 

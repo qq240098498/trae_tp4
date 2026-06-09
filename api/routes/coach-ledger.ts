@@ -25,6 +25,26 @@ function getWeekRange(dateStr: string): { start: string; end: string } {
   };
 }
 
+function getMonthRange(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr);
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return {
+    start: formatDateOnly(start),
+    end: formatDateOnly(end),
+  };
+}
+
+function getYearRange(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr);
+  const start = new Date(date.getFullYear(), 0, 1);
+  const end = new Date(date.getFullYear(), 11, 31);
+  return {
+    start: formatDateOnly(start),
+    end: formatDateOnly(end),
+  };
+}
+
 function getCourseName(c: string): string {
   return ({ subject1: '科目一', subject2: '科目二', subject3: '科目三', subject4: '科目四' } as Record<string, string>)[c] || c;
 }
@@ -32,6 +52,57 @@ function getCourseName(c: string): string {
 function getDefaultHourlyRate(courseType: string): number {
   const rates: Record<string, number> = { subject1: 50, subject2: 80, subject3: 100, subject4: 60 };
   return rates[courseType] || 50;
+}
+
+function getABCGradeFromScore(score: number, rule?: any): { grade: string; deduction_rate: number } {
+  const aScore = rule?.grade_a_score ?? 80;
+  const bScore = rule?.grade_b_score ?? 60;
+  const cDeduction = rule?.grade_c_deduction_rate ?? 0.2;
+  if (score >= aScore) return { grade: 'A', deduction_rate: 0 };
+  if (score >= bScore) return { grade: 'B', deduction_rate: 0 };
+  return { grade: 'C', deduction_rate: cDeduction };
+}
+
+function detectPeriodType(start: string, end: string): string {
+  const s = new Date(start);
+  const e = new Date(end);
+  const sY = s.getFullYear();
+  const eY = e.getFullYear();
+  const sM = s.getMonth();
+  const eM = e.getMonth();
+  const sD = s.getDate();
+  const eD = e.getDate();
+  if (sY === eY && sM === eM && sD === 1 && eD === new Date(eY, eM + 1, 0).getDate()) return 'monthly';
+  if (sY === eY && sM === 0 && sD === 1 && eM === 11 && eD === 31) return 'yearly';
+  const diffDays = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 6) return 'weekly';
+  return 'custom';
+}
+
+function getLinkedPerformance(coachId: number, start: string, end: string): any {
+  const periodType = detectPeriodType(start, end);
+  let perf: any = null;
+  if (periodType !== 'custom') {
+    perf = queryOne(
+      `SELECT cp.*, pr.grade_a_score, pr.grade_b_score, pr.grade_c_deduction_rate 
+       FROM coach_performance cp 
+       LEFT JOIN performance_rules pr ON cp.period_type = pr.period_type
+       WHERE cp.coach_id=? AND cp.period_type=? AND cp.period_start=? AND cp.period_end=? AND cp.status='published'`,
+      [coachId, periodType, start, end]
+    );
+  }
+  if (!perf) {
+    perf = queryOne(
+      `SELECT cp.*, pr.grade_a_score, pr.grade_b_score, pr.grade_c_deduction_rate 
+       FROM coach_performance cp 
+       LEFT JOIN performance_rules pr ON cp.period_type = pr.period_type
+       WHERE cp.coach_id=? AND cp.status='published' 
+         AND cp.period_start <= ? AND cp.period_end >= ?
+       ORDER BY cp.created_at DESC LIMIT 1`,
+      [coachId, end, start]
+    );
+  }
+  return perf;
 }
 
 // 获取教练课时费配置
@@ -363,6 +434,18 @@ router.get('/salary/:coach_id', authMiddleware, async (req: Request, res: Respon
     const finalStart = startDate || today.substring(0, 8) + '01';
     const finalEnd = endDate || today;
 
+    const performance = getLinkedPerformance(coachId, finalStart, finalEnd);
+    const compositeScore = performance?.composite_score ?? null;
+    let abcGradeInfo = { grade: '-', deduction_rate: 0 };
+    if (compositeScore !== null) {
+      const rule = performance || undefined;
+      abcGradeInfo = getABCGradeFromScore(compositeScore, rule);
+    } else {
+      const defaultRule = queryOne('SELECT * FROM performance_rules WHERE period_type=? LIMIT 1', ['monthly']);
+      const defScore = 75;
+      abcGradeInfo = getABCGradeFromScore(defScore, defaultRule || undefined);
+    }
+
     // 每日考勤数据
     const dailyRecords = queryAll(
       `SELECT 
@@ -480,6 +563,11 @@ router.get('/salary/:coach_id', authMiddleware, async (req: Request, res: Respon
     totals.total_hours = Math.round(totals.total_hours * 100) / 100;
     totals.total_salary = Math.round(totals.total_salary * 100) / 100;
 
+    const baseSalary = totals.total_salary;
+    const deductionRate = abcGradeInfo.deduction_rate;
+    const performanceDeduction = Math.round(baseSalary * deductionRate * 100) / 100;
+    const finalSalary = Math.round((baseSalary - performanceDeduction) * 100) / 100;
+
     // 分科目汇总
     const courseAgg = new Map<string, any>();
     dailyRecords.forEach((r) => {
@@ -513,7 +601,26 @@ router.get('/salary/:coach_id', authMiddleware, async (req: Request, res: Respon
       data: {
         start_date: finalStart,
         end_date: finalEnd,
-        summary: totals,
+        period_type: detectPeriodType(finalStart, finalEnd),
+        performance: performance ? {
+          id: performance.id,
+          period_type: performance.period_type,
+          composite_score: compositeScore,
+          grade: performance.grade,
+          abc_grade: abcGradeInfo.grade,
+          ranking: performance.ranking,
+          period_start: performance.period_start,
+          period_end: performance.period_end,
+        } : null,
+        abc_grade: abcGradeInfo.grade,
+        salary_deduction_rate: deductionRate,
+        summary: {
+          ...totals,
+          base_salary: baseSalary,
+          performance_deduction: performanceDeduction,
+          final_salary: finalSalary,
+          total_salary: finalSalary,
+        },
         course_summary: courseSummary,
         daily_list: dailyList,
       },

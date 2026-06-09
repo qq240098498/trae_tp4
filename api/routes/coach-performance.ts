@@ -16,15 +16,15 @@ router.get('/rules', authMiddleware, async (_req: Request, res: Response): Promi
 router.put('/rules/:id', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score } = req.body;
+    const { hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, grade_a_score, grade_b_score, grade_c_deduction_rate } = req.body;
     const totalWeight = (hours_weight || 0) + (pass_rate_weight || 0) + (evaluation_weight || 0) + (attendance_weight || 0) + (violation_weight || 0);
     if (Math.abs(totalWeight - 1) > 0.01) {
       res.status(400).json({ success: false, error: '权重总和必须等于1' });
       return;
     }
     run(
-      `UPDATE performance_rules SET hours_weight=?, pass_rate_weight=?, evaluation_weight=?, attendance_weight=?, violation_weight=?, excellent_score=?, good_score=?, pass_score=?, updated_at=datetime('now') WHERE id=?`,
-      [hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, id]
+      `UPDATE performance_rules SET hours_weight=?, pass_rate_weight=?, evaluation_weight=?, attendance_weight=?, violation_weight=?, excellent_score=?, good_score=?, pass_score=?, grade_a_score=COALESCE(?, grade_a_score), grade_b_score=COALESCE(?, grade_b_score), grade_c_deduction_rate=COALESCE(?, grade_c_deduction_rate), updated_at=datetime('now') WHERE id=?`,
+      [hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score, grade_a_score, grade_b_score, grade_c_deduction_rate, id]
     );
     const updated = queryOne('SELECT * FROM performance_rules WHERE id=?', [id]);
     res.json({ success: true, data: updated });
@@ -79,6 +79,15 @@ function getGrade(score: number, rule: any) {
   return 'fail';
 }
 
+function getABCGrade(score: number, rule: any): { grade: string; deduction_rate: number } {
+  const aScore = rule.grade_a_score ?? 80;
+  const bScore = rule.grade_b_score ?? 60;
+  const cDeduction = rule.grade_c_deduction_rate ?? 0.2;
+  if (score >= aScore) return { grade: 'A', deduction_rate: 0 };
+  if (score >= bScore) return { grade: 'B', deduction_rate: 0 };
+  return { grade: 'C', deduction_rate: cDeduction };
+}
+
 router.post('/calculate', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const { coach_id, period_type, period_start, period_end, target_hours } = req.body;
@@ -104,6 +113,7 @@ router.post('/calculate', authMiddleware, async (req: Request, res: Response): P
       avg_evaluation_score: avgEvalScore, on_time_rate: onTimeRate / 100, violation_count: violationCount
     }, rule);
     const grade = getGrade(compositeScore, rule);
+    const abcGrade = getABCGrade(compositeScore, rule);
     res.json({
       success: true,
       data: {
@@ -112,7 +122,8 @@ router.post('/calculate', authMiddleware, async (req: Request, res: Response): P
         student_count: hoursResult?.student_count || 0, pass_count: passCount, exam_count: examCount, pass_rate: passRate,
         avg_evaluation_score: avgEvalScore, on_time_rate: onTimeRate,
         violation_count: violationCount, violation_deduction: violationDeduction,
-        composite_score: compositeScore, grade: grade
+        composite_score: compositeScore, grade: grade,
+        abc_grade: abcGrade.grade, salary_deduction_rate: abcGrade.deduction_rate
       }
     });
   } catch (error) {
