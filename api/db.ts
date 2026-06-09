@@ -156,6 +156,117 @@ CREATE TABLE IF NOT EXISTS export_records (
   status TEXT NOT NULL DEFAULT 'processing' CHECK(status IN ('processing', 'completed', 'failed')),
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS performance_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  period_type TEXT NOT NULL DEFAULT 'monthly' CHECK(period_type IN ('monthly', 'quarterly', 'yearly')),
+  hours_weight REAL NOT NULL DEFAULT 0.3,
+  pass_rate_weight REAL NOT NULL DEFAULT 0.25,
+  evaluation_weight REAL NOT NULL DEFAULT 0.2,
+  attendance_weight REAL NOT NULL DEFAULT 0.15,
+  violation_weight REAL NOT NULL DEFAULT 0.1,
+  excellent_score REAL NOT NULL DEFAULT 90,
+  good_score REAL NOT NULL DEFAULT 75,
+  pass_score REAL NOT NULL DEFAULT 60,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS coach_performance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  coach_id INTEGER NOT NULL REFERENCES users(id),
+  period_type TEXT NOT NULL CHECK(period_type IN ('monthly', 'quarterly', 'yearly')),
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  total_hours REAL NOT NULL DEFAULT 0,
+  target_hours REAL NOT NULL DEFAULT 0,
+  hours_achievement REAL NOT NULL DEFAULT 0,
+  student_count INTEGER NOT NULL DEFAULT 0,
+  pass_count INTEGER NOT NULL DEFAULT 0,
+  exam_count INTEGER NOT NULL DEFAULT 0,
+  pass_rate REAL NOT NULL DEFAULT 0,
+  avg_evaluation_score REAL NOT NULL DEFAULT 0,
+  on_time_rate REAL NOT NULL DEFAULT 0,
+  violation_count INTEGER NOT NULL DEFAULT 0,
+  violation_deduction REAL NOT NULL DEFAULT 0,
+  composite_score REAL NOT NULL DEFAULT 0,
+  grade TEXT NOT NULL DEFAULT 'pending' CHECK(grade IN ('excellent', 'good', 'pass', 'fail', 'pending')),
+  ranking INTEGER,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
+  remark TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS teaching_evaluations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  coach_id INTEGER NOT NULL REFERENCES users(id),
+  student_id INTEGER NOT NULL REFERENCES students(id),
+  attendance_id INTEGER REFERENCES attendance(id),
+  course_type TEXT NOT NULL CHECK(course_type IN ('subject1', 'subject2', 'subject3', 'subject4')),
+  professional_score INTEGER NOT NULL DEFAULT 0 CHECK(professional_score >= 0 AND professional_score <= 5),
+  patience_score INTEGER NOT NULL DEFAULT 0 CHECK(patience_score >= 0 AND patience_score <= 5),
+  communication_score INTEGER NOT NULL DEFAULT 0 CHECK(communication_score >= 0 AND communication_score <= 5),
+  punctuality_score INTEGER NOT NULL DEFAULT 0 CHECK(punctuality_score >= 0 AND punctuality_score <= 5),
+  overall_score REAL NOT NULL DEFAULT 0,
+  comment TEXT,
+  tags TEXT,
+  is_anonymous INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'published' CHECK(status IN ('pending', 'published', 'hidden')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS student_learning_analysis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL REFERENCES students(id),
+  analysis_date TEXT NOT NULL,
+  course_type TEXT NOT NULL CHECK(course_type IN ('subject1', 'subject2', 'subject3', 'subject4')),
+  total_hours REAL NOT NULL DEFAULT 0,
+  training_days INTEGER NOT NULL DEFAULT 0,
+  avg_hours_per_day REAL NOT NULL DEFAULT 0,
+  weekly_frequency REAL NOT NULL DEFAULT 0,
+  recent_trend TEXT NOT NULL DEFAULT 'stable' CHECK(recent_trend IN ('improving', 'stable', 'declining')),
+  weak_points TEXT,
+  strong_points TEXT,
+  learning_efficiency REAL NOT NULL DEFAULT 0,
+  expected_completion_date TEXT,
+  risk_level TEXT NOT NULL DEFAULT 'low' CHECK(risk_level IN ('low', 'medium', 'high')),
+  suggestions TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(student_id, course_type, analysis_date)
+);
+
+CREATE TABLE IF NOT EXISTS violations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  violation_type TEXT NOT NULL CHECK(violation_type IN (
+    'coach_late', 'coach_absent', 'coach_early_leave',
+    'coach_smoking', 'coach_verbal_abuse', 'coach_solicit_fee',
+    'student_late', 'student_absent', 'student_misconduct',
+    'cheating', 'safety_violation', 'equipment_misuse', 'other'
+  )),
+  violator_type TEXT NOT NULL CHECK(violator_type IN ('coach', 'student')),
+  violator_id INTEGER NOT NULL,
+  reporter_id INTEGER REFERENCES users(id),
+  related_attendance_id INTEGER REFERENCES attendance(id),
+  related_schedule_id INTEGER REFERENCES schedules(id),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  evidence TEXT,
+  occurrence_time TEXT NOT NULL,
+  location TEXT,
+  severity TEXT NOT NULL DEFAULT 'minor' CHECK(severity IN ('minor', 'moderate', 'major', 'serious')),
+  penalty_type TEXT CHECK(penalty_type IN ('warning', 'fine', 'suspension', 'termination', 'other')),
+  penalty_detail TEXT,
+  penalty_amount REAL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'investigating', 'confirmed', 'appealed', 'resolved', 'cancelled')),
+  handler_id INTEGER REFERENCES users(id),
+  handled_at TEXT,
+  resolution_note TEXT,
+  is_appealed INTEGER NOT NULL DEFAULT 0,
+  appeal_reason TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 `;
 
 const INSERT_SEED_DATA = `
@@ -167,6 +278,9 @@ INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshol
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject2', 16, 0.8);
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject3', 24, 0.8);
 INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshold) VALUES ('subject4', 10, 0.8);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('monthly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('quarterly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
+INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('yearly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
 `;
 
 export async function initDb(): Promise<Database> {

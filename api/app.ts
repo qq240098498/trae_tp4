@@ -16,6 +16,10 @@ import attendanceRoutes from './routes/attendance.js'
 import statisticsRoutes from './routes/statistics.js'
 import alertsRoutes from './routes/alerts.js'
 import exportRoutes from './routes/export.js'
+import coachPerformanceRoutes from './routes/coach-performance.js'
+import evaluationsRoutes from './routes/evaluations.js'
+import studentAnalysisRoutes from './routes/student-analysis.js'
+import violationsRoutes from './routes/violations.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -36,6 +40,10 @@ app.use('/api/attendance', attendanceRoutes)
 app.use('/api/statistics', statisticsRoutes)
 app.use('/api/alerts', alertsRoutes)
 app.use('/api/export', exportRoutes)
+app.use('/api/coach-performance', coachPerformanceRoutes)
+app.use('/api/evaluations', evaluationsRoutes)
+app.use('/api/student-analysis', studentAnalysisRoutes)
+app.use('/api/violations', violationsRoutes)
 
 app.use(
   '/api/health',

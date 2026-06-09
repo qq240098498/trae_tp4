@@ -10,6 +10,10 @@ import Attendance from '@/pages/Attendance'
 import Statistics from '@/pages/Statistics'
 import Alerts from '@/pages/Alerts'
 import ExportPage from '@/pages/ExportPage'
+import CoachPerformance from '@/pages/CoachPerformance'
+import Evaluations from '@/pages/Evaluations'
+import StudentAnalysis from '@/pages/StudentAnalysis'
+import Violations from '@/pages/Violations'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -48,6 +52,10 @@ export default function App() {
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/export" element={<ExportPage />} />
+          <Route path="/coach-performance" element={<CoachPerformance />} />
+          <Route path="/evaluations" element={<Evaluations />} />
+          <Route path="/student-analysis" element={<StudentAnalysis />} />
+          <Route path="/violations" element={<Violations />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

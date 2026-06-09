@@ -10,7 +10,14 @@ import {
   LogOut,
   Menu,
   ChevronLeft,
+  Trophy,
+  MessageSquare,
+  Brain,
+  ShieldAlert,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useAuthStore, useUIStore } from '@/store'
 
 const menuItems = [
@@ -20,6 +27,16 @@ const menuItems = [
   { path: '/attendance', label: '签到打卡', icon: CheckSquare },
   { path: '/statistics', label: '学时统计', icon: BarChart3 },
   { path: '/alerts', label: '学时提醒', icon: AlertTriangle },
+  {
+    label: '迭代功能',
+    icon: Trophy,
+    children: [
+      { path: '/coach-performance', label: '教练绩效', icon: Trophy },
+      { path: '/evaluations', label: '教学评估', icon: MessageSquare },
+      { path: '/student-analysis', label: '学情分析', icon: Brain },
+      { path: '/violations', label: '违规监管', icon: ShieldAlert },
+    ],
+  },
   { path: '/export', label: '记录导出', icon: Download },
 ]
 
@@ -27,6 +44,13 @@ export default function Layout() {
   const { user, logout } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
   const navigate = useNavigate()
+  const [openMenus, setOpenMenus] = useState<string[]>(['迭代功能'])
+
+  const toggleMenu = (label: string) => {
+    setOpenMenus((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    )
+  }
 
   const handleLogout = () => {
     logout()
@@ -53,23 +77,60 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-white/20 text-white font-medium'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
-                } ${sidebarCollapsed ? 'justify-center' : ''}`
-              }
-            >
-              <item.icon size={20} />
-              {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
-            </NavLink>
-          ))}
+          {menuItems.map((item) =>
+            item.children && !sidebarCollapsed ? (
+              <div key={item.label}>
+                <button
+                  onClick={() => toggleMenu(item.label)}
+                  className={`w-full flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg transition-colors text-white/70 hover:bg-white/10 hover:text-white`}
+                >
+                  <item.icon size={20} />
+                  <span className="text-sm flex-1 text-left">{item.label}</span>
+                  {openMenus.includes(item.label) ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
+                </button>
+                {openMenus.includes(item.label) && (
+                  <div className="mt-1 space-y-1 ml-2">
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.path}
+                        to={child.path}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-sm ${
+                            isActive
+                              ? 'bg-white/20 text-white font-medium'
+                              : 'text-white/60 hover:bg-white/10 hover:text-white'
+                          }`
+                        }
+                      >
+                        <child.icon size={18} />
+                        <span>{child.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <NavLink
+                key={item.path}
+                to={item.path!}
+                end={item.path === '/'}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-white/20 text-white font-medium'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  } ${sidebarCollapsed ? 'justify-center' : ''}`
+                }
+              >
+                <item.icon size={20} />
+                {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
+              </NavLink>
+            )
+          )}
         </nav>
 
         <div className="border-t border-white/10 p-3">
