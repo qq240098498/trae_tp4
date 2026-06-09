@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK(role IN ('admin', 'coach')),
   name TEXT NOT NULL,
   phone TEXT,
+  employee_id TEXT,
+  hire_date TEXT,
+  specialty TEXT,
+  coach_status TEXT DEFAULT 'active' CHECK(coach_status IN ('active', 'leave', 'resigned')),
+  license_number TEXT,
+  years_of_experience INTEGER DEFAULT 0,
+  remark TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -319,7 +326,6 @@ export async function initDb(): Promise<Database> {
   }
 
   db.exec(CREATE_TABLES);
-  db.exec(INSERT_SEED_DATA);
 
   // 迁移：为 performance_rules 表添加新字段（grade_a_score, grade_b_score, grade_c_deduction_rate）
   try {
@@ -340,6 +346,40 @@ export async function initDb(): Promise<Database> {
   } catch (e) {
     console.warn('Migration skipped for performance_rules:', (e as Error).message);
   }
+
+  // 迁移：为 users 表添加教练专属字段
+  try {
+    const userColumns = db.exec("PRAGMA table_info(users)");
+    const userColNames: string[] = [];
+    if (userColumns.length > 0 && userColumns[0].values) {
+      userColumns[0].values.forEach((row: any) => userColNames.push(row[1] as string));
+    }
+    if (!userColNames.includes('employee_id')) {
+      run(`ALTER TABLE users ADD COLUMN employee_id TEXT`);
+    }
+    if (!userColNames.includes('hire_date')) {
+      run(`ALTER TABLE users ADD COLUMN hire_date TEXT`);
+    }
+    if (!userColNames.includes('specialty')) {
+      run(`ALTER TABLE users ADD COLUMN specialty TEXT`);
+    }
+    if (!userColNames.includes('coach_status')) {
+      run(`ALTER TABLE users ADD COLUMN coach_status TEXT DEFAULT 'active' CHECK(coach_status IN ('active', 'leave', 'resigned'))`);
+    }
+    if (!userColNames.includes('license_number')) {
+      run(`ALTER TABLE users ADD COLUMN license_number TEXT`);
+    }
+    if (!userColNames.includes('years_of_experience')) {
+      run(`ALTER TABLE users ADD COLUMN years_of_experience INTEGER DEFAULT 0`);
+    }
+    if (!userColNames.includes('remark')) {
+      run(`ALTER TABLE users ADD COLUMN remark TEXT`);
+    }
+  } catch (e) {
+    console.warn('Migration skipped for users:', (e as Error).message);
+  }
+
+  db.exec(INSERT_SEED_DATA);
 
   saveDb();
 

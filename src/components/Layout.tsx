@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
+  UserCog,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore, useUIStore } from '@/store'
@@ -24,6 +25,7 @@ import { useAuthStore, useUIStore } from '@/store'
 const menuItems = [
   { path: '/', label: '仪表盘', icon: LayoutDashboard },
   { path: '/students', label: '学员档案', icon: Users },
+  { path: '/coaches', label: '教练管理', icon: UserCog },
   { path: '/scheduling', label: '课程排班', icon: Calendar },
   { path: '/attendance', label: '签到打卡', icon: CheckSquare },
   { path: '/statistics', label: '学时统计', icon: BarChart3 },
