@@ -14,6 +14,7 @@ import CoachPerformance from '@/pages/CoachPerformance'
 import Evaluations from '@/pages/Evaluations'
 import StudentAnalysis from '@/pages/StudentAnalysis'
 import Violations from '@/pages/Violations'
+import CoachLedger from '@/pages/CoachLedger'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/evaluations" element={<Evaluations />} />
           <Route path="/student-analysis" element={<StudentAnalysis />} />
           <Route path="/violations" element={<Violations />} />
+          <Route path="/coach-ledger" element={<CoachLedger />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

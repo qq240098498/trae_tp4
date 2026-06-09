@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   ChevronDown,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore, useUIStore } from '@/store'
@@ -35,6 +36,7 @@ const menuItems = [
       { path: '/evaluations', label: '教学评估', icon: MessageSquare },
       { path: '/student-analysis', label: '学情分析', icon: Brain },
       { path: '/violations', label: '违规监管', icon: ShieldAlert },
+      { path: '/coach-ledger', label: '工作台账', icon: BookOpen },
     ],
   },
   { path: '/export', label: '记录导出', icon: Download },

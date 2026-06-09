@@ -267,6 +267,16 @@ CREATE TABLE IF NOT EXISTS violations (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS coach_hourly_rates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  coach_id INTEGER NOT NULL REFERENCES users(id),
+  course_type TEXT NOT NULL CHECK(course_type IN ('subject1', 'subject2', 'subject3', 'subject4')),
+  hourly_rate REAL NOT NULL DEFAULT 0,
+  effective_date TEXT NOT NULL DEFAULT (date('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(coach_id, course_type, effective_date)
+);
 `;
 
 const INSERT_SEED_DATA = `
@@ -281,6 +291,18 @@ INSERT OR IGNORE INTO alert_rules (course_type, required_hours, warning_threshol
 INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('monthly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
 INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('quarterly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
 INSERT OR IGNORE INTO performance_rules (period_type, hours_weight, pass_rate_weight, evaluation_weight, attendance_weight, violation_weight, excellent_score, good_score, pass_score) VALUES ('yearly', 0.3, 0.25, 0.2, 0.15, 0.1, 90, 75, 60);
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject1', 50.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject2', 80.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject3', 100.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (2, 'subject4', 60.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (3, 'subject1', 50.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (3, 'subject2', 80.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (3, 'subject3', 100.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (3, 'subject4', 60.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (4, 'subject1', 50.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (4, 'subject2', 80.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (4, 'subject3', 100.0, '2024-01-01');
+INSERT OR IGNORE INTO coach_hourly_rates (coach_id, course_type, hourly_rate, effective_date) VALUES (4, 'subject4', 60.0, '2024-01-01');
 `;
 
 export async function initDb(): Promise<Database> {

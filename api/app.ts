@@ -19,7 +19,8 @@ import exportRoutes from './routes/export.js'
 import coachPerformanceRoutes from './routes/coach-performance.js'
 import evaluationsRoutes from './routes/evaluations.js'
 import studentAnalysisRoutes from './routes/student-analysis.js'
-import violationsRoutes from './routes/violations.js'
+import violationsRoutes from './routes/violations.js';
+import coachLedgerRoutes from './routes/coach-ledger.js';
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -44,6 +45,7 @@ app.use('/api/coach-performance', coachPerformanceRoutes)
 app.use('/api/evaluations', evaluationsRoutes)
 app.use('/api/student-analysis', studentAnalysisRoutes)
 app.use('/api/violations', violationsRoutes)
+app.use('/api/coach-ledger', coachLedgerRoutes)
 
 app.use(
   '/api/health',
